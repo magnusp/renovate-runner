@@ -36,6 +36,8 @@ if [[ "$ephemeral" == "true" ]]; then
   exec ./run.sh
 fi
 
+# Job control keeps SIGINT from being ignored by the background job; run.sh turns SIGTERM into SIGINT for the listener
+set -m
 ./run.sh &
 pid=$!
 trap 'kill -TERM "$pid" 2>/dev/null || true' TERM INT
