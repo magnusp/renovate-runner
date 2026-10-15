@@ -22,3 +22,27 @@ jobs:
           jq --version
           docker --version
           docker buildx version
+
+  go-project:
+    runs-on: self-hosted
+    env:
+      GO_VERSION: 1.22.8
+      # Avoids GitHub API rate limits during Renovate's lookups
+      GITHUB_COM_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        working-directory: testdata/go-project
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Go with containerbase
+        run: install-tool golang "${GO_VERSION}"
+
+      - name: go test
+        run: go test ./...
+
+      - name: Renovate finds the outdated dependency
+        run: |
+          LOG_LEVEL=debug LOG_FORMAT=json renovate --platform=local --dry-run=lookup --onboarding=false --require-config=ignored > "${RUNNER_TEMP}/renovate.log"
+          jq -r -R 'fromjson? | select(.msg == "packageFiles with updates") | .config.gomod[].deps[] | select(.updates | length > 0) | "\(.depName) \(.currentValue) -> \([.updates[].newVersion] | join(", "))"' "${RUNNER_TEMP}/renovate.log"
+          jq -e -R 'fromjson? | select(.msg == "packageFiles with updates") | .config.gomod[].deps[] | select(.depName == "github.com/google/uuid" and (.updates | length > 0))' "${RUNNER_TEMP}/renovate.log" > /dev/null
