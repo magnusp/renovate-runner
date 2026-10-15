@@ -50,25 +50,27 @@ RUN apt update -y \
     && apt install -y --no-install-recommends sudo lsb-release curl jq unzip git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN adduser --disabled-password --gecos "" --uid 1001 runner \
-    && (getent group docker >/dev/null || groupadd docker) \
+# Run as the base image's ubuntu user: it owns /opt/containerbase (so tools can be installed on demand) and /home/ubuntu
+RUN (getent group docker >/dev/null || groupadd docker) \
     && groupmod --gid 123 docker \
-    && usermod -aG sudo runner \
-    && usermod -aG docker runner \
+    && usermod -aG sudo ubuntu \
+    && usermod -aG docker ubuntu \
     && echo "%sudo   ALL=(ALL:ALL) NOPASSWD:ALL" > /etc/sudoers \
     && echo "Defaults env_keep += \"DEBIAN_FRONTEND\"" >> /etc/sudoers \
-    && chmod 777 /home/runner
+    && mkdir -p /home/runner \
+    && chown ubuntu:docker /home/runner
 
 WORKDIR /home/runner
 
-COPY --chown=runner:docker --from=build /actions-runner .
+COPY --chown=ubuntu:docker --from=build /actions-runner .
 COPY --from=build /usr/local/lib/docker/cli-plugins/docker-buildx /usr/local/lib/docker/cli-plugins/docker-buildx
 
-RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
+# The base image's containerbase wrapper in /usr/local/bin runs its own docker (without buildx) ahead of /usr/bin in PATH
+RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker /usr/local/bin/docker
 
 COPY --chmod=755 entrypoint.sh /usr/local/bin/runner-entrypoint.sh
 
-USER runner
+USER ubuntu
 
 ENTRYPOINT ["/usr/local/bin/runner-entrypoint.sh"]
 CMD ["renovate"]
