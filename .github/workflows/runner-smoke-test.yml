@@ -1,0 +1,22 @@
+name: Runner smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: self-hosted
+    steps:
+      - name: Runner environment
+        run: |
+          echo "user:   $(whoami)"
+          echo "runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
+          echo "image:  ${ImageOS}"
+
+      - name: Tool versions
+        run: |
+          renovate --version
+          node --version
+          git --version
+          jq --version
+          docker --version
