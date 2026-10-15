@@ -12,6 +12,7 @@ jobs:
           echo "user:   $(whoami)"
           echo "runner: ${RUNNER_NAME} (${RUNNER_OS}/${RUNNER_ARCH})"
           echo "image:  ${ImageOS}"
+          echo "home:   ${HOME}"
 
       - name: Tool versions
         run: |
@@ -20,3 +21,4 @@ jobs:
           git --version
           jq --version
           docker --version
+          docker buildx version

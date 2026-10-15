@@ -59,12 +59,16 @@ RUN adduser --disabled-password --gecos "" --uid 1001 runner \
     && echo "Defaults env_keep += \"DEBIAN_FRONTEND\"" >> /etc/sudoers \
     && chmod 777 /home/runner
 
+# containerbase's BASH_ENV script forces HOME=/home/ubuntu for non-root users, which the runner user cannot write to
+ENV BASH_ENV="" ENV="" HOME=/home/runner
+
 WORKDIR /home/runner
 
 COPY --chown=runner:docker --from=build /actions-runner .
 COPY --from=build /usr/local/lib/docker/cli-plugins/docker-buildx /usr/local/lib/docker/cli-plugins/docker-buildx
 
-RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker
+# The base image's containerbase wrapper in /usr/local/bin runs its own docker (without buildx) ahead of /usr/bin in PATH
+RUN install -o root -g root -m 755 docker/* /usr/bin/ && rm -rf docker /usr/local/bin/docker
 
 COPY --chmod=755 entrypoint.sh /usr/local/bin/runner-entrypoint.sh
 
