@@ -46,3 +46,42 @@ jobs:
           LOG_LEVEL=debug LOG_FORMAT=json renovate --platform=local --dry-run=lookup --onboarding=false --require-config=ignored > "${RUNNER_TEMP}/renovate.log"
           jq -r -R 'fromjson? | select(.msg == "packageFiles with updates") | .config.gomod[].deps[] | select(.updates | length > 0) | "\(.depName) \(.currentValue) -> \([.updates[].newVersion] | join(", "))"' "${RUNNER_TEMP}/renovate.log"
           jq -e -R 'fromjson? | select(.msg == "packageFiles with updates") | .config.gomod[].deps[] | select(.depName == "github.com/google/uuid" and (.updates | length > 0))' "${RUNNER_TEMP}/renovate.log" > /dev/null
+
+  renovate-install:
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    env:
+      RENOVATE_PLATFORM: github
+      RENOVATE_TOKEN: ${{ github.token }}
+      GITHUB_COM_TOKEN: ${{ github.token }}
+      RENOVATE_REPOSITORIES: ${{ github.repository }}
+      RENOVATE_BINARY_SOURCE: install
+      RENOVATE_DRY_RUN: full
+      RENOVATE_ONBOARDING: "false"
+      RENOVATE_REQUIRE_CONFIG: ignored
+      RENOVATE_DEPENDENCY_DASHBOARD: "false"
+      LOG_LEVEL: debug
+      LOG_FORMAT: json
+    steps:
+      - name: Go is not installed beforehand
+        run: "! command -v go"
+
+      - name: Run Renovate (dry run, gomod only)
+        run: |
+          export RENOVATE_CONFIG="$(jq -nc --arg ref "${GITHUB_REF_NAME}" '{
+            enabledManagers: ["gomod"],
+            includePaths: ["testdata/go-project/**"],
+            baseBranchPatterns: [$ref],
+            gitAuthor: "Renovate Bot <renovate@users.noreply.github.com>"
+          }')"
+          renovate > "${RUNNER_TEMP}/renovate.log"
+
+      - name: Renovate installed Go itself and prepared the update
+        run: |
+          jq -r -R 'fromjson? | select((.cmd // "" | tostring | test("install-tool")) or (.msg // "" | test("DRY-RUN|artifact|install-tool"; "i"))) | "\(.msg) \(.cmd // "")"' "${RUNNER_TEMP}/renovate.log" | cut -c1-200 | head -20
+          grep -q 'install-tool golang' "${RUNNER_TEMP}/renovate.log"
+          jq -e -R 'fromjson? | select((.msg // "") | test("DRY-RUN: Would commit files to branch"))' "${RUNNER_TEMP}/renovate.log" > /dev/null
+          command -v go && go version
